@@ -10,7 +10,6 @@ import {
 } from '@angular/platform-browser-dynamic/testing';
 import { inject, TestBed, async } from "@angular/core/testing";
 import { BrowserModule } from "@angular/platform-browser";
-import "rxjs/Rx";
 import any = jasmine.any;
 
 import { C8o } from "./lib/c8o.service";
@@ -20,10 +19,9 @@ import { Functions, Info, Stuff, PlainObjectA, PlainObjectB } from "./utils.help
 import { HttpClientModule, HttpErrorResponse,HTTP_INTERCEPTORS } from "@angular/common/http";
 import { HttpClient } from "@angular/common/http";
 
-import "rxjs/Rx";
 import PouchDB from "pouchdb-browser";
 import { C8oUtils } from "./lib/c8oUtils.service";
-import { C8oAlldocsLocal, C8oPromise, C8oSettings, C8oLogLevel, C8oException, C8oExceptionMessage, C8oProgress, C8oLocalCache, C8oFullSyncChangeListener, Priority, C8oRessourceNotFoundException, C8oResponseJsonListener, C8oHttpRequestException, C8oCore } from "../src/c8osdk-js-core/src/index";
+import { C8oAlldocsLocal, C8oPromise, C8oSettings, C8oLogLevel, C8oException, C8oExceptionMessage, C8oProgress, C8oLocalCache, C8oFullSyncChangeListener, Priority, C8oRessourceNotFoundException, C8oResponseJsonListener, C8oHttpRequestException, C8oCore } from "./c8osdk-js-core/src/index";
 import { $ } from 'protractor';
 import { windowTime } from 'rxjs/operators';
 
@@ -58,22 +56,30 @@ describe("provider: basic calls verifications", () => {
             ]
         });
     });
-    afterEach(async (done)=> {
+    afterEach((done)=> {
         inject([C8o], async (c8o: C8o) => {
+        let doneIsDone = false;
         jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
         if(c8o.couchUrl != "http://fakecoururl.com"){
             c8o.callJson(".logout", "__disableAutologin", true)
             .then((res)=>{
-                //debugger;
-                done();
+                if(!doneIsDone){
+                    doneIsDone = true;
+                    done();
+                }
                 return null;
             })
             .fail((err)=>{
-                //debugger;
-                done();
+                if(!doneIsDone){
+                    doneIsDone = true;
+                    done();
+                }
             });
             setTimeout(()=>{
-                done();
+                if(!doneIsDone){
+                    doneIsDone = true;
+                    done();
+                }
             },5000)
         }
         else{
@@ -84,14 +90,20 @@ describe("provider: basic calls verifications", () => {
     });
 
 
-    it("should test create fs createIndex (C8oFsCreateIndex)", async (done) => {
+    
+    it("should test create fs createIndex (C8oFsCreateIndex)", (done) => {
         inject([C8o], async (c8o: C8o) => {
-
         c8o.init(Stuff.C8o)
         .catch((err: C8oException) => {
             expect(err).toBeUndefined();
         });
-        await c8o.finalizeInit();
+        try{
+            await c8o.finalizeInit();
+        }
+        catch(e){
+
+        }
+        
         try{
             await c8o.callJson("fs://mabase.post", "docid", 1, "name", "Gérard").async();
             await c8o.callJson("fs://mabase.post", "docid", 2, "name", "Roger").async();
@@ -114,7 +126,7 @@ describe("provider: basic calls verifications", () => {
         })();
     })
 
-    it("should test execute fs find (C8oFSFind)", async (done) => {
+    it("should test execute fs find (C8oFSFind)", (done) => {
         inject([C8o], async (c8o: C8o) => {
 
         c8o.init(Stuff.C8o)
@@ -134,7 +146,7 @@ describe("provider: basic calls verifications", () => {
         })();
     })
 
-    it("should test execute fs explain (C8oFSExplain)", async (done) => {
+    it("should test execute fs explain (C8oFSExplain)", (done) => {
         inject([C8o], async (c8o: C8o) => {
 
         c8o.init(Stuff.C8o)
@@ -159,7 +171,7 @@ describe("provider: basic calls verifications", () => {
         })();
     })
 
-    it("should test execute fs getIndexes (C8oFSGetIndexes)", async (done) => {
+    it("should test execute fs getIndexes (C8oFSGetIndexes)", (done) => {
         inject([C8o], async (c8o: C8o) => {
 
         c8o.init(Stuff.C8o)
@@ -180,7 +192,7 @@ describe("provider: basic calls verifications", () => {
         })();
     })
 
-    it("should test execute fs search (C8oFSSearch)", async (done) => {
+    it("should test execute fs search (C8oFSSearch)", (done) => {
         inject([C8o], async (c8o: C8o) => {
 
         c8o.init(Stuff.C8o)
@@ -200,7 +212,7 @@ describe("provider: basic calls verifications", () => {
     })
     
 
-    it("should remove null parameters (C8oRemovePing)", async (done) => {
+    it("should remove null parameters (C8oRemovePing)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o)
                 .catch((err: C8oException) => {
@@ -240,7 +252,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should ping (C8oDefaultPing)", async (done) => {
+    it("should ping (C8oDefaultPing)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o)
                 .catch((err: C8oException) => {
@@ -326,7 +338,7 @@ describe("provider: basic calls verifications", () => {
     });
 
 
-    it("should ping one single value (C8oDefaultPingOneSingleValue)", async (done) => {
+    it("should ping one single value (C8oDefaultPingOneSingleValue)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -345,7 +357,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should ping two single value (C8oDefaultPingTwoSingleValues)", async (done) => {
+    it("should ping two single value (C8oDefaultPingTwoSingleValues)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -367,7 +379,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should ping two single value and one value multi (C8oDefaultPingTwoSingleValuesOneMulti)", async (done) => {
+    it("should ping two single value and one value multi (C8oDefaultPingTwoSingleValuesOneMulti)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -393,7 +405,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should ping two single value and two value multi (C8oDefaultPingTwoSingleValuesTwoMulti)", async (done) => {
+    it("should ping two single value and two value multi (C8oDefaultPingTwoSingleValuesTwoMulti)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -422,7 +434,7 @@ describe("provider: basic calls verifications", () => {
     );
 
 
-    it("should check Json types (C8oCheckJsonTypes)", async (done) => {
+    it("should check Json types (C8oCheckJsonTypes)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -469,7 +481,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that sessions are not mixed (CheckNoMixSession)", async (done) => {
+    it("should check that sessions are not mixed (CheckNoMixSession)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -495,7 +507,7 @@ describe("provider: basic calls verifications", () => {
     );
 
 
-    it("should check that one default promise works (C8oDefaultPromiseXmlOne)", async (done) => {
+    it("should check that one default promise works (C8oDefaultPromiseXmlOne)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -514,7 +526,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that three default promises works (C8oDefaultPromiseJsonThree)", async (done) => {
+    it("should check that three default promises works (C8oDefaultPromiseJsonThree)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -541,7 +553,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that a promise could fail (C8oDefaultPromiseFail)", async (done) => {
+    it("should check that a promise could fail (C8oDefaultPromiseFail)", (done) => {
 
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
@@ -573,7 +585,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that a promise could be nested (C8oDefaultPromiseNested)", async (done) => {
+    it("should check that a promise could be nested (C8oDefaultPromiseNested)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -613,7 +625,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that a promise could be nested and failed (C8oDefaultPromiseNestedFail)", async (done) => {
+    it("should check that a promise could be nested and failed (C8oDefaultPromiseNestedFail)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -651,7 +663,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that a promise could stored in var (C8oDefaultPromiseInVar)", async (done) => {
+    it("should check that a promise could stored in var (C8oDefaultPromiseInVar)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -702,7 +714,7 @@ describe("provider: basic calls verifications", () => {
         })();
     });
 
-    it("should check sdk version (CheckVersion)", async (done) => {
+    it("should check sdk version (CheckVersion)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             let settings: any = new C8oSettings();
             settings
@@ -713,13 +725,14 @@ describe("provider: basic calls verifications", () => {
                 expect(err).toBeUndefined();
             }).then(async () => {
                 await c8o.finalizeInit();
-                expect(c8o.sdkVersion).toBe(require("../package.json").version);
+                debugger;
+                expect(c8o.sdkVersion).toBe(require("../../package.json").version);
                 done();
             })
         })();
     });
 
-    it("should check someParams (CheckParams)", async (done) => {
+    it("should check someParams (CheckParams)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             let settings: any = new C8oSettings();
             settings
@@ -822,7 +835,7 @@ describe("provider: basic calls verifications", () => {
 
 
 
-    it("should verify C8oExceptionMessages (C8oExceptionsMessages)", async (done) => {
+    it("should verify C8oExceptionMessages (C8oExceptionsMessages)", (done) => {
         new C8oRessourceNotFoundException("a", new Error("abc"));
         expect(C8oExceptionMessage.notImplementedFullSyncInterface()).toBe("You are using the default FullSyncInterface which is not implemented");
         expect(C8oExceptionMessage.invalidParameterValue("params", "details")).toBe("The parameter 'params' is invalid, details");
@@ -941,7 +954,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should returns and IllegalArgument Exception (C8oBadEndpoint)", async (done) => {
+    it("should returns and IllegalArgument Exception (C8oBadEndpoint)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             let settings: any = new C8oSettings();
             settings.setDefaultDatabaseName("retaildb")
@@ -994,7 +1007,7 @@ describe("provider: basic calls verifications", () => {
         }))
     );
 
-    it("should check that Fullsync Post Get Delete works (C8oFsPostGetDelete)", async (done) => {
+    it("should check that Fullsync Post Get Delete works (C8oFsPostGetDelete)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -1032,7 +1045,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post Get Delete works with observable (C8oFsPostGetDeleteObs)", async (done) => {
+    it("should check that Fullsync Post Get Delete works with observable (C8oFsPostGetDeleteObs)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -1092,7 +1105,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post Get Delete works with rev (C8oFsPostGetDeleteRev)", async (done) => {
+    it("should check that Fullsync Post Get Delete works with rev (C8oFsPostGetDeleteRev)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -1135,7 +1148,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post Get Destoy Create works (C8oFsPostGetDestroyCreate)", async (done) => {
+    it("should check that Fullsync Post Get Destoy Create works (C8oFsPostGetDestroyCreate)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -1185,7 +1198,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post Reset works (C8oFsPostReset)", async (done) => {
+    it("should check that Fullsync Post Reset works (C8oFsPostReset)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -1218,7 +1231,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post on existing is not working(C8oFsPostExisting)", async (done) => {
+    it("should check that Fullsync Post on existing is not working(C8oFsPostExisting)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -1247,7 +1260,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post on existing with policy none is not working(C8oFsPostExistingPolicyNone)", async (done) => {
+    it("should check that Fullsync Post on existing with policy none is not working(C8oFsPostExistingPolicyNone)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -1276,7 +1289,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post on existing with policy create works (C8oFsPostExistingPolicyCreate)", async (done) => {
+    it("should check that Fullsync Post on existing with policy create works (C8oFsPostExistingPolicyCreate)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1309,7 +1322,7 @@ describe("provider: basic calls verifications", () => {
     );
 
 
-    it("should check that Fullsync Post on existing with policy override works (C8oFsPostExistingPolicyOverride)", async (done) => {
+    it("should check that Fullsync Post on existing with policy override works (C8oFsPostExistingPolicyOverride)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1358,7 +1371,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post on existing with policy merge works (C8oFsPostExistingPolicyMerge)", async (done) => {
+    it("should check that Fullsync Post on existing with policy merge works (C8oFsPostExistingPolicyMerge)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1407,7 +1420,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Post on existing with policy merge works with sub values (C8oFsPostExistingPolicyMergeSub)", async (done) => {
+    it("should check that Fullsync Post on existing with policy merge works with sub values (C8oFsPostExistingPolicyMergeSub)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1474,7 +1487,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Merge object works (C8oFsMergeObject)", async (done) => {
+    it("should check that Fullsync Merge object works (C8oFsMergeObject)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1564,7 +1577,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync post get works on several bases (C8oFsPostGetMultibase)", async (done) => {
+    it("should check that Fullsync post get works on several bases (C8oFsPostGetMultibase)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1610,7 +1623,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync replicate ano and auth (C8oFsReplicateAnoAndAuth)", async (done) => {
+    it("should check that Fullsync replicate ano and auth (C8oFsReplicateAnoAndAuth)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PULL).catch((error) => {
                 done.fail("error is not supposed to happend during init");
@@ -1680,7 +1693,7 @@ describe("provider: basic calls verifications", () => {
 
 
 
-    it("should check that Fullsync replicate pull with progess(C8oFsReplicatePullProgress)", async (done) => {
+    it("should check that Fullsync replicate pull with progess(C8oFsReplicatePullProgress)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PULL).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1733,7 +1746,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync replicate pull ano auth and view works(C8oFsReplicatePullAnoAndAuthView)", async (done) => {
+    it("should check that Fullsync replicate pull ano auth and view works(C8oFsReplicatePullAnoAndAuthView)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PULL).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1830,7 +1843,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync view array key works(C8oFsViewArrayKey)", async (done) => {
+    it("should check that Fullsync view array key works(C8oFsViewArrayKey)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PULL).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1871,7 +1884,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync repliacte pull get all works(C8oFsReplicatePullGetAll)", async (done) => {
+    it("should check that Fullsync repliacte pull get all works(C8oFsReplicatePullGetAll)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PULL).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1933,7 +1946,7 @@ describe("provider: basic calls verifications", () => {
         })();
     }
     );
-    it("should check that Fullsync repliacte push auth works(C8oFsReplicatePushAuth)", async (done) => {
+    it("should check that Fullsync repliacte push auth works(C8oFsReplicatePushAuth)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PUSH).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -1983,7 +1996,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync repliacte push auth progress works(C8oFsReplicatePushAuthProgress)", async (done) => {
+    it("should check that Fullsync repliacte push auth progress works(C8oFsReplicatePushAuthProgress)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PUSH).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -2033,7 +2046,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync repliacte sync continuous progress works(C8oFsReplicateSyncContinuousProgress)", async (done) => {
+    it("should check that Fullsync repliacte sync continuous progress works(C8oFsReplicateSyncContinuousProgress)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PUSH).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -2139,7 +2152,7 @@ describe("provider: basic calls verifications", () => {
 
 
 
-    it("should check that Fullsync repliacte cancel works(C8oFsReplicateCancelAsync)", async (done) => {
+    it("should check that Fullsync repliacte cancel works(C8oFsReplicateCancelAsync)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             try {
                 await c8o.init(Stuff.C8o_FS);
@@ -2164,7 +2177,7 @@ describe("provider: basic calls verifications", () => {
     });
 
 
-    it("should check that Fullsync repliacte cancel works(C8oFsReplicateCancel)", async (done) => {
+    it("should check that Fullsync repliacte cancel works(C8oFsReplicateCancel)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -2214,7 +2227,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 /***
-    it("should check that Fullsync repliacte cancel when lauching two replication works(C8oFsReplicateCancelOnDoublon)", async (done) => {
+    it("should check that Fullsync repliacte cancel when lauching two replication works(C8oFsReplicateCancelOnDoublon)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             let state: string;
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
@@ -2252,7 +2265,7 @@ describe("provider: basic calls verifications", () => {
     });
 /*/
 
-    it("should check that c8o local cache works (C8oLocalCacheXmlPriorityLocal)", async (done) => {
+    it("should check that c8o local cache works (C8oLocalCacheXmlPriorityLocal)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_LC).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -2302,7 +2315,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that c8o fs live changes works (C8oFsLiveChanges)", async (done) => {
+    it("should check that c8o fs live changes works (C8oFsLiveChanges)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS_PUSH).catch(() => {
                 done.fail("error is not supposed to happend");
@@ -2382,7 +2395,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
-    it("should check that Fullsync Put attachment works (C8oFsPutAttachment)", async (done) => {
+    it("should check that Fullsync Put attachment works (C8oFsPutAttachment)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -2492,7 +2505,7 @@ describe("provider: basic calls verifications", () => {
         })();
     });
 
-    it("should check that Fullsync bulkworks (C8oFsBulk)", async (done) => {
+    it("should check that Fullsync bulkworks (C8oFsBulk)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
                 expect(err).toBeUndefined();
@@ -2536,7 +2549,7 @@ describe("provider: basic calls verifications", () => {
         })();
     });
 
-    it("should check that handle Network Events works (C8oHandleNetworkEvent)", async (done) => {
+    it("should check that handle Network Events works (C8oHandleNetworkEvent)", (done) => {
         inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
             try {
                 let array = [];
@@ -2579,7 +2592,7 @@ describe("provider: basic calls verifications", () => {
         })();;
     });
 
-    it("should check that keepAlive and autologin works works(C8oHandleSessionLost)", async (done) => {
+    it("should check that keepAlive and autologin works works(C8oHandleSessionLost)", (done) => {
         debugger;
         inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
             try {
@@ -2628,7 +2641,7 @@ describe("provider: basic calls verifications", () => {
             }
         })();
     });
-     it("should check that replication restart or not when its necessary (C8oReplicationStopR)", async (done) => {
+     it("should check that replication restart or not when its necessary (C8oReplicationStopR)", (done) => {
         inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
             try {
                 let timeout;
@@ -2703,7 +2716,7 @@ describe("provider: basic calls verifications", () => {
                     // remove session
                     //Functions.removesess(c8o, resolve);
                     await c8o.callJson(".logout", C8o.SEQ_AUTO_LOGIN_OFF, true);
-                    resolve();
+                    resolve(true);
 
                 });
                 p.then(async () => {
@@ -2751,7 +2764,7 @@ describe("provider: basic calls verifications", () => {
     });
  
 
-    it("should check that Fullsync reset database is not applied on local created database (C8oFsResetNotForLocalCreatedDB)", async (done) => {
+    it("should check that Fullsync reset database is not applied on local created database (C8oFsResetNotForLocalCreatedDB)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_Sessions).catch((error) => {
                 done.fail("error is not supposed to happend during init");
@@ -2793,7 +2806,7 @@ describe("provider: basic calls verifications", () => {
         })();
     });
 
-    it("should check that Fullsync reset database is effective on older DB (without db Versions) (C8oFsResetWorksOlderDB)", async (done) => {
+    it("should check that Fullsync reset database is effective on older DB (without db Versions) (C8oFsResetWorksOlderDB)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_Sessions).catch((error) => {
                 done.fail("error is not supposed to happend during init");
@@ -2837,7 +2850,7 @@ describe("provider: basic calls verifications", () => {
         })();
     });
 
-    it("should check that Fullsync reset database is effective on DB with diffrent version (C8oFsResetWorksDiffrentDBVersions)", async (done) => {
+    it("should check that Fullsync reset database is effective on DB with diffrent version (C8oFsResetWorksDiffrentDBVersions)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_Sessions).catch((error) => {
                 done.fail("error is not supposed to happend during init");
@@ -2883,7 +2896,7 @@ describe("provider: basic calls verifications", () => {
     });
 
 
-    it("should check that Fullsync reset database is not effective on DB with setting  setDisableResetBase (C8oFsResetNotEffective with setDisableResetBase)", async (done) => {
+    it("should check that Fullsync reset database is not effective on DB with setting  setDisableResetBase (C8oFsResetNotEffective with setDisableResetBase)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_Sessions).catch((error) => {
                 done.fail("error is not supposed to happend during init");
@@ -2929,7 +2942,7 @@ describe("provider: basic calls verifications", () => {
         })();
     });
 
-it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)", async (done) => {
+it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)", (done) => {
     inject([C8o], async (c8o: C8o) => {
         c8o.init(Stuff.C8o_Sessions).catch((error) => {
             done.fail("error is not supposed to happend during init");
@@ -2973,7 +2986,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
     })();
 });
 
-    it("should check that Fullsync database merge subpolicy works _use_merge_ : delete (C8oFsSubpolicy_use_merge_delete)", async (done) => {
+    it("should check that Fullsync database merge subpolicy works _use_merge_ : delete (C8oFsSubpolicy_use_merge_delete)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_Sessions).catch((error) => {
                 done.fail("error is not supposed to happend during init");
@@ -3024,7 +3037,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
             done();
         })();
     });
-    it("should check that Fullsync database merge subpolicy works _use_merge_ : override (C8oFsSubpolicy_use_merge_override)", async (done) => {
+    it("should check that Fullsync database merge subpolicy works _use_merge_ : override (C8oFsSubpolicy_use_merge_override)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_Sessions).catch((error) => {
                 done.fail("error is not supposed to happend during init");
@@ -3080,7 +3093,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
         })();
     });
 
-    it("should check that Fullsync database with prefix works(C8oFsWithPrefix)", async (done) => {
+    it("should check that Fullsync database with prefix works(C8oFsWithPrefix)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             try {
                 c8o.init(Stuff.C8o_Sessions).catch((error) => {
@@ -3151,7 +3164,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
         })();
     });
 
-    it("should check that log remote works (CheckLogRemote)", async (done) => {
+    it("should check that log remote works (CheckLogRemote)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             await Functions.wait(10000)
             let c8oSettings: C8oSettings = new C8oSettings();
@@ -3197,7 +3210,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
     );
 
 
-    it("should fs://.all_local works(C8oFsAllLocal)", async (done) => {
+    it("should fs://.all_local works(C8oFsAllLocal)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o)
                 .catch((err: C8oException) => {
@@ -3304,7 +3317,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
     })
 
     
-    it("should check that generated error go to then", async (done) => {
+    it("should check that generated error go to then", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o)
                 .catch((err: C8oException) => {
@@ -3338,7 +3351,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
         })();
     });
 
-    it("should check that generated error go to fail", async (done) => {
+    it("should check that generated error go to fail", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o.setErrorConvertigoIntoFail(true))
                 .catch((err: C8oException) => {
@@ -3371,7 +3384,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
         })();
     });
 
-    it("should check that generated error go to then but is not saved in local cache", async (done) => {
+    it("should check that generated error go to then but is not saved in local cache", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o)
                 .catch((err: C8oException) => {
@@ -3429,7 +3442,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
     });
 
 /*
-    it("should fs://.all_local works(C8oFsAllLocal)", async (done) => {
+    it("should fs://.all_local works(C8oFsAllLocal)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o)
                 .catch((err: C8oException) => {

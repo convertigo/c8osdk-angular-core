@@ -1,10 +1,10 @@
 //noinspection TsLint
 /*import {C8oSettings} from "./c8osdk-js-core/src/c8o/c8oSettings";
 import {C8oLogLevel} from "./c8osdk-js-core/src/c8o/c8oLogLevel";*/
-import { C8oSettings, C8oLogLevel } from "../src/c8osdk-js-core/src/index";
+import { C8oSettings, C8oLogLevel } from "./c8osdk-js-core/src/index";
 import { C8o } from "./lib/c8o.service";
 import { HttpHeaders } from '@angular/common/http';
-import { C8oCore } from "../src/c8osdk-js-core/src/index";
+import { C8oCore } from "./c8osdk-js-core/src/index";
 import { Utils } from 'handlebars';
 /**
  * @class
@@ -62,7 +62,7 @@ export class Info {
     }
 
     public static get logLevelLocal(): C8oLogLevel {
-        if (require("../package.json").test == "testing version") {
+        if (require("../../package.json").test == "testing version") {
             return C8oLogLevel.ERROR
         }
         else {
@@ -71,7 +71,7 @@ export class Info {
 
     }
     public static get log(): boolean {
-        if (require("../package.json").test == "testing version") {
+        if (require("../../package.json").test == "testing version") {
             return false;
         }
         else {
