@@ -201,7 +201,8 @@ describe("provider: basic calls verifications", () => {
         });
         await c8o.finalizeInit();
         try{
-            var resp = await c8o.callJsonObject("fs://mabase.search",{query: 'dupont', fields: ['name']}).async();
+            var resp = await c8o.callJsonObject("fs://mabase.search",{"highlighting":true,"include_docs":true,"mm":"0%","query":"d","fields":["name"]}).async();
+            console.log("maresp",resp);
             done();
         }
         catch(e){
@@ -210,7 +211,7 @@ describe("provider: basic calls verifications", () => {
         }
         })();
     })
-    
+    /*
 
     it("should remove null parameters (C8oRemovePing)", (done) => {
         inject([C8o], async (c8o: C8o) => {
@@ -2264,7 +2265,7 @@ describe("provider: basic calls verifications", () => {
         )();
     });
 /*/
-
+/*
     it("should check that c8o local cache works (C8oLocalCacheXmlPriorityLocal)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_LC).catch(() => {
