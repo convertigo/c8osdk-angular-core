@@ -5,7 +5,6 @@ import { C8oSettings, C8oLogLevel } from "./c8osdk-js-core/src/index";
 import { C8o } from "./lib/c8o.service";
 import { HttpHeaders } from '@angular/common/http';
 import { C8oCore } from "./c8osdk-js-core/src/index";
-import { Utils } from 'handlebars';
 /**
  * @class
  * @ignore

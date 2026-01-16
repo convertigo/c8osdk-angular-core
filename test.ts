@@ -1,14 +1,12 @@
 // This file is required by karma.conf.js and loads recursively all the .spec and framework files
 
-import 'core-js/es7/reflect';
-import 'zone.js/dist/zone';
-import 'zone.js/dist/zone-testing';
-import { getTestBed } from '@angular/core/testing';
+import 'zone.js';
+import 'zone.js/testing';
+import { getTestBed, inject, TestBed, waitForAsync } from '@angular/core/testing';
 import {
     BrowserDynamicTestingModule,
     platformBrowserDynamicTesting
 } from '@angular/platform-browser-dynamic/testing';
-import { inject, TestBed, async } from "@angular/core/testing";
 import { BrowserModule } from "@angular/platform-browser";
 import any = jasmine.any;
 
@@ -972,7 +970,7 @@ describe("provider: basic calls verifications", () => {
 
 
     it("should genrerates exceptions (C8oUnknownHostCallAndLog)",
-        async(inject([C8o], async (c8o: C8o) => {
+        waitForAsync(inject([C8o], async (c8o: C8o) => {
             let exceptionLog;
             let settings: any = new C8oSettings();
             settings
