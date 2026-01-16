@@ -24,7 +24,6 @@ import "rxjs/Rx";
 import PouchDB from "pouchdb-browser";
 import { C8oUtils } from "./lib/c8oUtils.service";
 import { C8oAlldocsLocal, C8oPromise, C8oSettings, C8oLogLevel, C8oException, C8oExceptionMessage, C8oProgress, C8oLocalCache, C8oFullSyncChangeListener, Priority, C8oRessourceNotFoundException, C8oResponseJsonListener, C8oHttpRequestException, C8oCore } from "../src/c8osdk-js-core/src/index";
-import { $ } from 'protractor';
 import { windowTime } from 'rxjs/operators';
 
 declare const require: any;
