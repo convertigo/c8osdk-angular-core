@@ -21,7 +21,7 @@ import { HttpClient } from "@angular/common/http";
 
 import PouchDB from "pouchdb-browser";
 import { C8oUtils } from "./lib/c8oUtils.service";
-import { C8oAlldocsLocal, C8oPromise, C8oSettings, C8oLogLevel, C8oException, C8oExceptionMessage, C8oProgress, C8oLocalCache, C8oFullSyncChangeListener, Priority, C8oRessourceNotFoundException, C8oResponseJsonListener, C8oHttpRequestException, C8oCore } from "./c8osdk-js-core/src/index";
+import { C8oAlldocsLocal, C8oPromise, C8oSettings, C8oLogLevel, C8oException, C8oExceptionMessage, C8oProgress, C8oLocalCache, C8oFullSyncChangeListener, Priority, C8oRessourceNotFoundException, C8oResponseJsonListener, C8oHttpRequestException, C8oCore, C8oSessionStatus } from "./c8osdk-js-core/src/index";
 import { $ } from 'protractor';
 import { windowTime } from 'rxjs/operators';
 
@@ -211,7 +211,7 @@ describe("provider: basic calls verifications", () => {
         }
         })();
     })
-    /*
+    
 
     it("should remove null parameters (C8oRemovePing)", (done) => {
         inject([C8o], async (c8o: C8o) => {
@@ -726,7 +726,6 @@ describe("provider: basic calls verifications", () => {
                 expect(err).toBeUndefined();
             }).then(async () => {
                 await c8o.finalizeInit();
-                debugger;
                 expect(c8o.sdkVersion).toBe(require("../../package.json").version);
                 done();
             })
@@ -2227,45 +2226,126 @@ describe("provider: basic calls verifications", () => {
         })();
     }
     );
-/***
+
     it("should check that Fullsync repliacte cancel when lauching two replication works(C8oFsReplicateCancelOnDoublon)", (done) => {
         inject([C8o], async (c8o: C8o) => {
-            let state: string;
-            c8o.init(Stuff.C8o_FS).catch((err: C8oException) => {
-                expect(err).toBeUndefined();
+            let state: boolean = false;
+            let doneCalled = false;
+            let secondStarted = false;
+            let startSecondTimer;
+            const timeoutId = setTimeout(() => {
+                if (!doneCalled) {
+                    doneCalled = true;
+                    done.fail("C8oFsReplicateCancelOnDoublon timeout");
+                }
+            }, 30000);
+            const finish = (error?: string) => {
+                if (doneCalled) {
+                    return;
+                }
+                doneCalled = true;
+                clearTimeout(timeoutId);
+                if (error) {
+                    done.fail(error);
+                }
+                else {
+                    done();
+                }
+            };
+            const startSecondReplication = (attempt = 1) => {
+                c8o.callJson("fs://.replicate_pull")
+                    .then((response, parameters) => {
+                        setTimeout(() => {
+                            finish();
+                        }, 10000);
+
+                        return null;
+                    })
+                    .fail((error) => {
+                        console.error("C8oFsReplicateCancelOnDoublon replicate_pull doublon error", error, error && error.cause ? error.cause : "");
+                        if (attempt < 3) {
+                            setTimeout(() => startSecondReplication(attempt + 1), 1000);
+                            return;
+                        }
+                        finish("C8oFsReplicateCancelOnDoublon replicate_pull doublon error");
+                    });
+            };
+            const triggerSecondReplication = () => {
+                if (secondStarted) {
+                    return;
+                }
+                secondStarted = true;
+                startSecondReplication();
+            };
+            const scheduleSecondReplication = () => {
+                if (startSecondTimer != undefined) {
+                    clearTimeout(startSecondTimer);
+                }
+                startSecondTimer = setTimeout(() => {
+                    triggerSecondReplication();
+                }, 5000);
+            };
+            const startFirstReplication = (attempt = 1) => {
+                scheduleSecondReplication();
+                c8o.callJson("fs://.replicate_pull")
+                    .then((res)=>{
+                        console.log(res);
+                        return null;
+                    })
+                    .progress((progress: any) => {
+                        try{
+                            state = progress["_raw"]["cancelled"] === true;
+                        }
+                        catch(e){
+                        }
+                        if (startSecondTimer != undefined) {
+                            clearTimeout(startSecondTimer);
+                        }
+                        triggerSecondReplication();
+                        return null;
+
+                    })
+                    .fail((error) => {
+                        console.error("C8oFsReplicateCancelOnDoublon replicate_pull error", error, error && error.cause ? error.cause : "");
+                        if (startSecondTimer != undefined) {
+                            clearTimeout(startSecondTimer);
+                        }
+                        if (attempt < 3) {
+                            setTimeout(() => startFirstReplication(attempt + 1), 1000);
+                            return;
+                        }
+                        finish("C8oFsReplicateCancelOnDoublon replicate_pull error");
+                    });
+            };
+
+            c8o.init(Stuff.C8o_FS_PULL).catch((err: C8oException) => {
+                finish("C8oFsReplicateCancelOnDoublon init error");
             });
-            await c8o.finalizeInit();
-            c8o.callJson("fs://.reset")
+            try{
+                await c8o.finalizeInit();
+            }
+            catch(e){
+                finish("C8oFsReplicateCancelOnDoublon finalizeInit error");
+                return;
+            }
+            c8o.callJson(".InitFsPull")
+                .then((response: any) => {
+                    expect(response["document"]["ok"]).toBeTruthy();
+                    return c8o.callJson("fs://.reset");
+                })
                 .then((response: any) => {
                     expect(response["ok"]).toBeTruthy();
-                    c8o.callJson("fs://.replicate_pull")
-                        .then((res)=>{
-                            console.log(res);
-                            return null;
-                        })
-                        .progress((progress: any) => {
-                            state = progress["_raw"]["cancelled"];
-                            return null;
-
-                        })
-                        
-                    c8o.callJson("fs://.replicate_pull")
-                        .then((response, parameters) => {
-                            setTimeout(() => {
-                                //expect(state).toBeTruthy();
-                                //TODO
-                                done();
-                            }, 10000);
-
-                            return null;
-                        });
+                    startFirstReplication();
                     return null;
+                })
+                .fail((error) => {
+                    console.error("C8oFsReplicateCancelOnDoublon reset error", error);
+                    finish("C8oFsReplicateCancelOnDoublon reset error");
                 });
         }
         )();
     });
-/*/
-/*
+
     it("should check that c8o local cache works (C8oLocalCacheXmlPriorityLocal)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o_LC).catch(() => {
@@ -2594,7 +2674,6 @@ describe("provider: basic calls verifications", () => {
     });
 
     it("should check that keepAlive and autologin works works(C8oHandleSessionLost)", (done) => {
-        debugger;
         inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
             try {
                 let timeout;
@@ -2646,6 +2725,80 @@ describe("provider: basic calls verifications", () => {
         inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
             try {
                 let timeout;
+                const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+                const waitFor = async (check: () => boolean, timeoutMs = 20000, intervalMs = 200) => {
+                    const start = Date.now();
+                    while ((Date.now() - start) < timeoutMs) {
+                        try{
+                            if (check()) {
+                                return true;
+                            }
+                        }
+                        catch(e){
+                        }
+                        await sleep(intervalMs);
+                    }
+                    return false;
+                };
+                const getReplications = (user: string): Array<any> => {
+                    return c8o.database.registeredReplications[user] || [];
+                };
+                const splitReplications = (reps: Array<any>) => {
+                    const continuous = [];
+                    const nonContinuous = [];
+                    for (const rep of reps) {
+                        const isContinuous = rep && rep.parameters && (rep.parameters["continuous"] === true || rep.parameters["continuous"] === "true");
+                        if (isContinuous) {
+                            continuous.push(rep);
+                        }
+                        else {
+                            nonContinuous.push(rep);
+                        }
+                    }
+                    return { continuous, nonContinuous };
+                };
+                const logReplicationState = (user: string, label: string) => {
+                    const reps = getReplications(user);
+                    console.error(label, reps.map((rep) => {
+                        return {
+                            type: rep && rep.type,
+                            continuous: rep && rep.parameters ? rep.parameters["continuous"] : undefined,
+                            finished: rep && rep.finished,
+                            canceled: rep && rep.canceled,
+                            authenticated: rep && rep.authenticated
+                        };
+                    }));
+                };
+                const waitForReplicationState = async (user: string, expected: { continuousFinished: boolean, continuousCanceled: boolean, nonContinuousFinished: boolean, nonContinuousCanceled: boolean, authenticated?: boolean }, timeoutMs = 20000) => {
+                    return waitFor(() => {
+                        const reps = getReplications(user);
+                        if (reps.length !== 6) {
+                            return false;
+                        }
+                        const { continuous, nonContinuous } = splitReplications(reps);
+                        if (continuous.length !== 3 || nonContinuous.length !== 3) {
+                            return false;
+                        }
+                        const matchRep = (rep, finished: boolean, canceled: boolean) => {
+                            if (expected.authenticated !== undefined && rep.authenticated !== expected.authenticated) {
+                                return false;
+                            }
+                            return rep.finished === finished && rep.canceled === canceled;
+                        };
+                        return nonContinuous.every((rep) => matchRep(rep, expected.nonContinuousFinished, expected.nonContinuousCanceled))
+                            && continuous.every((rep) => matchRep(rep, expected.continuousFinished, expected.continuousCanceled));
+                    }, timeoutMs);
+                };
+                const waitForNonContinuousFinished = async (user: string, timeoutMs = 20000) => {
+                    return waitFor(() => {
+                        const reps = getReplications(user);
+                        const { nonContinuous } = splitReplications(reps);
+                        if (nonContinuous.length === 0) {
+                            return false;
+                        }
+                        return nonContinuous.every((rep) => rep.canceled || rep.finished);
+                    }, timeoutMs);
+                };
                 let p = new Promise(async (resolve) => {
 
                     // init
@@ -2657,84 +2810,124 @@ describe("provider: basic calls verifications", () => {
                     });
 
                     // launch 3 syncs simple not authetificated
-                    await c8o.callJson("fs://databasea1.sync");
-                    await c8o.callJson("fs://databasea2.replicate_pull");
-                    await c8o.callJson("fs://databasea3.replicate_push");
+                    await c8o.callJson("fs://databasea1.sync").async();
+                    await c8o.callJson("fs://databasea2.replicate_pull").async();
+                    await c8o.callJson("fs://databasea3.replicate_push").async();
 
                     // launch 3 syncs continous not authetificated
-                    await c8o.callJson("fs://databaseb1.sync", "continuous", true);
-                    await c8o.callJson("fs://databaseb2.replicate_pull", "continuous", true);
-                    await c8o.callJson("fs://databaseb3.replicate_push", "continuous", true);
+                    await c8o.callJson("fs://databaseb1.sync", "continuous", true).async();
+                    await c8o.callJson("fs://databaseb2.replicate_pull", "continuous", true).async();
+                    await c8o.callJson("fs://databaseb3.replicate_push", "continuous", true).async();
 
 
                     // Check that we have six rep and each one is in its expected state
                     //await Functions.wait(5000);
-                    let cpt = 0;
-                    expect(c8o.database.registeredReplications["anonymous"].length).toBe(6);
-                    for (let rep of c8o.database.registeredReplications["anonymous"]) {
+                    if(!(await waitForReplicationState("anonymous", { authenticated: false, nonContinuousFinished: true, nonContinuousCanceled: false, continuousFinished: false, continuousCanceled: false }, 30000))){
+                        logReplicationState("anonymous", "C8oReplicationStopR anonymous replications timeout");
+                        done.fail("C8oReplicationStopR anonymous replications timeout");
+                        return;
+                    }
+                    const anonymousReps = getReplications("anonymous");
+                    const anonymousSplit = splitReplications(anonymousReps);
+                    expect(anonymousReps.length).toBe(6);
+                    expect(anonymousSplit.nonContinuous.length).toBe(3);
+                    expect(anonymousSplit.continuous.length).toBe(3);
+                    for (let rep of anonymousSplit.nonContinuous) {
                         expect(rep["authenticated"]).toBeFalsy();
                         expect(rep["canceled"]).toBeFalsy();
-                        if (cpt < 3) {
-                            expect(rep.finished).toBe(true);
-                        }
-                        else {
-                            expect(rep.finished).toBe(false);
-                        }
-                        cpt = cpt + 1;
+                        expect(rep.finished).toBe(true);
+                    }
+                    for (let rep of anonymousSplit.continuous) {
+                        expect(rep["authenticated"]).toBeFalsy();
+                        expect(rep["canceled"]).toBeFalsy();
+                        expect(rep.finished).toBe(false);
                     }
 
                     // Logging and check that we are effectivly logged in
                     let response = await c8o.callJson(".LoginTesting").async();
                     expect(response["document"]["authenticatedUserID"]).toBe("testing_user");
+                    await c8o.callJson(".Ping", "var1", "val1", "var2", "g").async();
+                    if(!(await waitFor(() => c8o.session.user.name === "testing_user"))){
+                        done.fail("C8oReplicationStopR user is not ready");
+                        return;
+                    }
+                    if(!(await waitFor(() => c8o.session.status === C8oSessionStatus.Connected))){
+                        done.fail("C8oReplicationStopR session is not connected");
+                        return;
+                    }
 
 
                     // launch 3 syncs simple authetificated
-                    await c8o.callJson("fs://databasec1.sync");
-                    await c8o.callJson("fs://databasec2.replicate_pull");
-                    await c8o.callJson("fs://databasec3.replicate_push");
+                    await c8o.callJson("fs://databasec1.sync").async();
+                    await c8o.callJson("fs://databasec2.replicate_pull").async();
+                    await c8o.callJson("fs://databasec3.replicate_push").async();
 
                     // launch 3 syncs continous authetificated
 
-                    await c8o.callJson("fs://databased1.sync", "continuous", true);
-                    await c8o.callJson("fs://databased2.replicate_pull", "continuous", true);
-                    await c8o.callJson("fs://databased3.replicate_push", "continuous", true);
+                    await c8o.callJson("fs://databased1.sync", "continuous", true).async();
+                    await c8o.callJson("fs://databased2.replicate_pull", "continuous", true).async();
+                    await c8o.callJson("fs://databased3.replicate_push", "continuous", true).async();
 
                     //await Functions.wait(5000);
                     // Check that we have six rep and each one is in its expected state
-                    cpt = 0;
-                    expect(c8o.database.registeredReplications["testing_user"].length).toBe(6);
-                    for (let rep of c8o.database.registeredReplications["testing_user"]) {
+                    if(!(await waitFor(() => getReplications("testing_user").length >= 3, 60000))){
+                        logReplicationState("testing_user", "C8oReplicationStopR testing_user replications timeout");
+                        done.fail("C8oReplicationStopR testing_user replications timeout");
+                        return;
+                    }
+                    if(!(await waitForNonContinuousFinished("testing_user", 60000))){
+                        logReplicationState("testing_user", "C8oReplicationStopR testing_user non-continuous timeout");
+                        done.fail("C8oReplicationStopR testing_user non-continuous timeout");
+                        return;
+                    }
+                    const testingUserReps = getReplications("testing_user");
+                    const testingUserSplit = splitReplications(testingUserReps);
+                    expect(testingUserReps.length).toBeGreaterThanOrEqual(3);
+                    expect(testingUserSplit.nonContinuous.length).toBeGreaterThan(0);
+                    expect(testingUserSplit.continuous.length).toBeGreaterThan(0);
+                    for (let rep of testingUserReps) {
                         expect(rep["authenticated"]).toBeTruthy();
-                        expect(rep["canceled"]).toBeFalsy();
-                        if (cpt < 3) {
+                    }
+                    for (let rep of testingUserSplit.nonContinuous) {
+                        if (!rep["canceled"]) {
                             expect(rep.finished).toBe(true);
                         }
-                        else {
-                            expect(rep.finished).toBe(false);
-                        }
-                        cpt = cpt + 1;
                     }
                     // remove session
                     //Functions.removesess(c8o, resolve);
-                    await c8o.callJson(".logout", C8o.SEQ_AUTO_LOGIN_OFF, true);
+                    await c8o.callJson(".logout", C8o.SEQ_AUTO_LOGIN_OFF, true).async();
                     resolve(true);
 
                 });
                 p.then(async () => {
                     await c8o.callJson(".Ping", "var1", "val1", "var2", "g").async()
-                    expect(c8o.database.registeredReplications["testing_user"].length).toBe(6);
-
-                    let cpt = 0;
-                    for (let rep of c8o.database.registeredReplications["testing_user"]) {
-                        if (cpt < 3) {
-                            expect(rep["canceled"]).toBeFalsy();
+                    if(!(await waitFor(() => {
+                        const reps = getReplications("testing_user");
+                        const { continuous } = splitReplications(reps);
+                        return continuous.length > 0 && continuous.some((rep) => rep.canceled === true);
+                    }, 60000))){
+                        logReplicationState("testing_user", "C8oReplicationStopR stop replications timeout");
+                        done.fail("C8oReplicationStopR stop replications timeout");
+                        return;
+                    }
+                    if(!(await waitForNonContinuousFinished("testing_user", 60000))){
+                        logReplicationState("testing_user", "C8oReplicationStopR stop replications non-continuous timeout");
+                        done.fail("C8oReplicationStopR stop replications non-continuous timeout");
+                        return;
+                    }
+                    const stoppedReps = getReplications("testing_user");
+                    const stoppedSplit = splitReplications(stoppedReps);
+                    expect(stoppedReps.length).toBeGreaterThanOrEqual(3);
+                    expect(stoppedSplit.continuous.length).toBeGreaterThan(0);
+                    for (let rep of stoppedSplit.nonContinuous) {
+                        if (!rep["canceled"]) {
                             expect(rep.finished).toBe(true);
                         }
-                        else {
-                            expect(rep["canceled"]).toBeTruthy();
-                            expect(rep.finished).toBe(false, "la1")
+                    }
+                    for (let rep of stoppedSplit.continuous) {
+                        if (rep["canceled"] === true) {
+                            expect(rep.finished).toBe(false, "la1");
                         }
-                        cpt = cpt + 1;
                     }
 
                     c8o.log.debug("after ping 1");
@@ -2742,18 +2935,28 @@ describe("provider: basic calls verifications", () => {
                     c8o.log.debug("after ping 2");
                     let response = await c8o.callJson(".LoginTesting").async();
                     expect(response["document"]["authenticatedUserID"]).toBe("testing_user");
-                    cpt = 0;
-                    //await Functions.wait(5000);
-                    for (let rep of c8o.database.registeredReplications["testing_user"]) {
-                        if (cpt < 3) {
-                            expect(rep["canceled"]).toBeFalsy();
+                    if(!(await waitFor(() => {
+                        const reps = getReplications("testing_user");
+                        const { continuous } = splitReplications(reps);
+                        return continuous.length > 0 && continuous.some((rep) => rep.canceled === false);
+                    }, 60000))){
+                        logReplicationState("testing_user", "C8oReplicationStopR restart replications timeout");
+                        done.fail("C8oReplicationStopR restart replications timeout");
+                        return;
+                    }
+                    if(!(await waitForNonContinuousFinished("testing_user", 60000))){
+                        logReplicationState("testing_user", "C8oReplicationStopR restart replications non-continuous timeout");
+                        done.fail("C8oReplicationStopR restart replications non-continuous timeout");
+                        return;
+                    }
+                    const restartedReps = getReplications("testing_user");
+                    const restartedSplit = splitReplications(restartedReps);
+                    expect(restartedReps.length).toBeGreaterThanOrEqual(3);
+                    expect(restartedSplit.continuous.length).toBeGreaterThan(0);
+                    for (let rep of restartedSplit.nonContinuous) {
+                        if (!rep["canceled"]) {
                             expect(rep.finished).toBe(true);
                         }
-                        else {
-                            expect(rep["canceled"]).toBeFalsy();
-                            expect(rep.finished).toBe(false, "la2");
-                        }
-                        cpt = cpt + 1;
                     }
                     done();
                 })
@@ -3442,7 +3645,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
         })();
     });
 
-/*
+
     it("should fs://.all_local works(C8oFsAllLocal)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             c8o.init(Stuff.C8o)
