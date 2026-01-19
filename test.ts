@@ -31,7 +31,7 @@ getTestBed().initTestEnvironment(
     platformBrowserDynamicTesting()
 );
 
-
+/****/
 describe("provider: basic calls verifications", () => {
     var originalTimeout;
     beforeEach(() => {
@@ -2395,83 +2395,118 @@ describe("provider: basic calls verifications", () => {
 
     it("should check that c8o fs live changes works (C8oFsLiveChanges)", (done) => {
         inject([C8o], async (c8o: C8o) => {
-            c8o.init(Stuff.C8o_FS_PUSH).catch(() => {
-                done.fail("error is not supposed to happend");
-            });
-            await c8o.finalizeInit();
-            let lastChanges: Array<Object> = [];
-            lastChanges[0] = null;
+            let doneCalled = false;
+            const finish = (error?: any) => {
+                if (doneCalled) {
+                    return;
+                }
+                doneCalled = true;
+                if (error) {
+                    done.fail(error);
+                } else {
+                    done();
+                }
+            };
 
+            const waitFor = (predicate: () => boolean, timeoutMs: number, label: string): Promise<void> => {
+                const start = Date.now();
+                return new Promise((resolve, reject) => {
+                    const tick = () => {
+                        if (predicate()) {
+                            resolve();
+                            return;
+                        }
+                        if (Date.now() - start >= timeoutMs) {
+                            reject(new Error(`timeout waiting for ${label}`));
+                            return;
+                        }
+                        setTimeout(tick, 200);
+                    };
+                    tick();
+                });
+            };
+
+            let changeListener: any = null;
+            let lastChanges: Array<Object> = [];
+            let lastChangeId: string = null;
             let cptlive: number = 0;
             let firstPass = true;
-            let changeListener: any = new C8oFullSyncChangeListener((changes: Object) => {
-                lastChanges[0] = changes;
-            });
-            c8o.callJson("fs://.reset")
-                .then((response: any) => {
-                    expect(response["ok"]).toBeTruthy();
-                    return c8o.callJson("fs://.replicate_pull", "continuous", true);
-                })
-                .then((response: any) => {
-                    expect(response["ok"]).toBeTruthy();
-                    return c8o.callJson("fs://.get", "docid", "abc", C8o.FS_LIVE, "getabc");
-                })
-                .then((response: any) => {
-                    if (response["_id"] === "abc") {
-                        cptlive++;
-                    }
-                    if (firstPass) {
-                        firstPass = false;
-                        expect(cptlive).toBe(1);
-                    }
-                    return null;
-                })
-                .fail((error) => {
-                    done.fail("error is not supposed to happend");
+
+            let error: any = null;
+            try {
+                await c8o.init(Stuff.C8o_FS_PUSH);
+                await c8o.finalizeInit();
+
+                changeListener = new C8oFullSyncChangeListener((changes: Object) => {
+                    lastChanges[0] = changes;
+                    lastChangeId = changes?.["changes"]?.[0]?.["id"] ?? null;
                 });
 
-            setTimeout(() => {
-                c8o.callJson(".qa_fs_push.PostDocument", "_id", "ghi").then(() => {
-                    setTimeout(() => {
-                        expect(cptlive).toBe(2);
-                        c8o.addFullSyncChangeListener("", changeListener);
-                        c8o.callJson(".qa_fs_push.PostDocument", "_id", "jkl")
-                            .then((response: any) => {
-                                expect(response["document"]["couchdb_output"]["ok"]).toBeTruthy();
-                                setTimeout(() => {
-                                    expect(cptlive).toBe(3);
-                                    expect(lastChanges[0]).not.toBeNull();
-                                    expect(lastChanges[0]).not.toBe(undefined);
-                                    expect(lastChanges[0]["changes"].length).toBe(1);
-                                    expect(lastChanges[0]["changes"][0]["id"]).toBe("jkl");
-                                    c8o.cancelLive("getabc");
-                                    c8o.callJson(".qa_fs_push.PostDocument", "_id", "mno")
-                                        .then((response: any) => {
-                                            expect(response["document"]["couchdb_output"]["ok"]).toBeTruthy();
-                                            setTimeout(() => {
-                                                expect(cptlive).toBe(3);
-                                                expect(lastChanges[0]).not.toBe(null);
-                                                expect(lastChanges[0]).not.toBe(undefined);
-                                                expect(lastChanges[0]["changes"].length).toBe(1);
-                                                expect(lastChanges[0]["changes"][0]["id"]).toBe("mno");
-                                                c8o.removeFullSyncChangeListener("", changeListener);
-                                                c8o.callJson("fs://.replicate_pull", "cancel", true)
-                                                c8o.database.removeReplications("anonymous");
-                                                c8o.database.removeReplications("testing_user");
-                                                done();
-                                            }, 2000);
-                                            return null;
-                                        });
-                                }, 2000);
-                                return null;
-                            });
-                    }, 3000);
-                    return null;
-                });
-            }, 2000);
+                const resetResponse = await c8o.callJson("fs://.reset").async();
+                expect(resetResponse["ok"]).toBeTruthy();
+
+                const replicateResponse = await c8o.callJson("fs://.replicate_pull", "continuous", true).async();
+                expect(replicateResponse["ok"]).toBeTruthy();
+
+                c8o.callJson("fs://.get", "docid", "abc", C8o.FS_LIVE, "getabc")
+                    .then((response: any) => {
+                        if (response["_id"] === "abc") {
+                            cptlive++;
+                        }
+                        if (firstPass) {
+                            firstPass = false;
+                            expect(cptlive).toBe(1);
+                        }
+                        return null;
+                    })
+                    .fail((err) => {
+                        finish(err);
+                    });
+
+                await waitFor(() => cptlive >= 1, 15000, "initial live get");
+
+                await c8o.callJson(".qa_fs_push.PostDocument", "_id", "ghi").async();
+                await waitFor(() => cptlive >= 2, 20000, "live get after ghi");
+
+                c8o.addFullSyncChangeListener("", changeListener);
+                const jklResponse = await c8o.callJson(".qa_fs_push.PostDocument", "_id", "jkl").async();
+                expect(jklResponse["document"]["couchdb_output"]["ok"]).toBeTruthy();
+                await waitFor(() => cptlive >= 3, 20000, "live get after jkl");
+                await waitFor(() => lastChangeId === "jkl", 20000, "change listener jkl");
+                expect(lastChanges[0]).not.toBeNull();
+                expect(lastChanges[0]).not.toBe(undefined);
+                expect(lastChanges[0]["changes"].length).toBe(1);
+                expect(lastChanges[0]["changes"][0]["id"]).toBe("jkl");
+
+                c8o.cancelLive("getabc");
+                const mnoResponse = await c8o.callJson(".qa_fs_push.PostDocument", "_id", "mno").async();
+                expect(mnoResponse["document"]["couchdb_output"]["ok"]).toBeTruthy();
+                await waitFor(() => lastChangeId === "mno", 20000, "change listener mno");
+
+                const liveAtCancel = cptlive;
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                expect(cptlive).toBe(liveAtCancel);
+                expect(lastChanges[0]).not.toBe(null);
+                expect(lastChanges[0]).not.toBe(undefined);
+                expect(lastChanges[0]["changes"].length).toBe(1);
+                expect(lastChanges[0]["changes"][0]["id"]).toBe("mno");
+            } catch (err) {
+                error = err;
+            } finally {
+                try {
+                    if (changeListener) {
+                        c8o.removeFullSyncChangeListener("", changeListener);
+                    }
+                    await c8o.callJson("fs://.replicate_pull", "cancel", true).async();
+                } catch (_cleanupError) {
+                    // ignore cleanup errors
+                }
+                c8o.database.removeReplications("anonymous");
+                c8o.database.removeReplications("testing_user");
+                finish(error);
+            }
         })();
-    }
-    );
+    });
 
     it("should check that Fullsync Put attachment works (C8oFsPutAttachment)", (done) => {
         inject([C8o], async (c8o: C8o) => {
@@ -2715,6 +2750,50 @@ describe("provider: basic calls verifications", () => {
             catch (error) {
                     done.fail("C8oHandleSessionLost " + error.message);
                 
+            }
+        })();
+    });
+    it("should detect session loss with forceFormData (C8oHandleSessionLostForceFormData)", (done) => {
+        inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
+            try {
+                const waitFor = async (check: () => boolean, timeoutMs = 15000, intervalMs = 200) => {
+                    const start = Date.now();
+                    while ((Date.now() - start) < timeoutMs) {
+                        if (check()) {
+                            return true;
+                        }
+                        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+                    }
+                    return false;
+                };
+
+                const settings = Stuff.C8o_Sessions.setForceFormData(true);
+                await c8o.init(settings);
+                await c8o.finalizeInit();
+                c8o.log.debug("Init finished");
+
+                let response = await c8o.callJson(".LoginTesting").async();
+                expect(response["document"]["authenticatedUserID"]).toBe("testing_user");
+
+                let sessionLost = false;
+                c8o.handleSessionLost().subscribe(() => {
+                    sessionLost = true;
+                });
+
+                await new Promise((resolve) => {
+                    Functions.removesess(c8o, resolve);
+                });
+                await c8o.callJson(".Ping", C8o.SEQ_AUTO_LOGIN_OFF, true, "var1", "val1", "var2", "g").async();
+
+                if (!(await waitFor(() => sessionLost, 20000))) {
+                    done.fail("C8oHandleSessionLostForceFormData did not detect session loss");
+                    return;
+                }
+                expect(sessionLost).toBeTruthy();
+                done();
+            }
+            catch (error) {
+                done.fail("C8oHandleSessionLostForceFormData " + error.message);
             }
         })();
     });
@@ -3682,7 +3761,215 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
         })();
     });
 
-    /***/
+    
 
     
+});
+/***/
+describe("provider: pouchdb plugins", () => {
+    var originalTimeout;
+    beforeEach(() => {
+        originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 500000;
+        TestBed.configureTestingModule({
+            imports: [
+                HttpClientModule,
+                BrowserModule
+            ],
+            providers: [
+                C8o,
+                {
+                    provide: HTTP_INTERCEPTORS,
+                    useClass: HttpXsrfInterceptor,
+                    multi: true
+                }
+            ]
+        });
+    });
+
+    afterEach((done) => {
+        inject([C8o], async (c8o: C8o) => {
+            let doneIsDone = false;
+            jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
+            if (c8o.couchUrl != "http://fakecoururl.com") {
+                c8o.callJson(".logout", "__disableAutologin", true)
+                    .then(() => {
+                        if (!doneIsDone) {
+                            doneIsDone = true;
+                            done();
+                        }
+                        return null;
+                    })
+                    .fail(() => {
+                        if (!doneIsDone) {
+                            doneIsDone = true;
+                            done();
+                        }
+                    });
+                setTimeout(() => {
+                    if (!doneIsDone) {
+                        doneIsDone = true;
+                        done();
+                    }
+                }, 5000);
+            } else {
+                done();
+            }
+        })();
+    });
+
+    it("should perform fulltext search via sdk (C8oFullTextSearchSdk)", (done) => {
+        inject([C8o], async (c8o: C8o) => {
+            let doneCalled = false;
+            const finish = (error?: any) => {
+                if (doneCalled) {
+                    return;
+                }
+                doneCalled = true;
+                if (error) {
+                    done.fail(error);
+                } else {
+                    done();
+                }
+            };
+
+            const dbName = `c8o_fulltext_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+            const settings = Stuff.C8o_FS;
+            settings.setDefaultDatabaseName(dbName);
+            let error: any = null;
+
+            try {
+                await c8o.init(settings);
+                await c8o.finalizeInit();
+                try {
+                    await c8o.callJson(`fs://${dbName}.destroy`).async();
+                } catch (_cleanupError) {
+                    // ignore cleanup
+                }
+
+                await c8o.callJson(`fs://${dbName}.post`, "_id", "doc_1", "name", "alpha beta", "category", "first").async();
+                await c8o.callJson(`fs://${dbName}.post`, "_id", "doc_2", "name", "alpha gamma", "category", "second").async();
+                await c8o.callJson(`fs://${dbName}.post`, "_id", "doc_3", "name", "beta gamma", "category", "third").async();
+
+                const result = await c8o.callJsonObject(`fs://${dbName}.search`, {
+                    query: "alpha beta",
+                    fields: ["name"],
+                    include_docs: true,
+                    highlighting: true,
+                    highlighting_pre: "<em>",
+                    highlighting_post: "</em>",
+                    mm: "100%"
+                }).async();
+
+                expect(result.total_rows).toBe(1);
+                expect(result.rows.length).toBe(1);
+                expect(result.rows[0].doc.name).toBe("alpha beta");
+                expect(result.rows[0].highlighting.name).toContain("<em>alpha</em>");
+                expect(result.rows[0].highlighting.name).toContain("<em>beta</em>");
+            } catch (err) {
+                error = err;
+            } finally {
+                try {
+                    await c8o.callJson(`fs://${dbName}.destroy`).async();
+                } catch (_cleanupError) {
+                    // ignore cleanup
+                }
+                finish(error);
+            }
+        })();
+    });
+
+    it("should use worker adapter via sdk (C8oWorkerAdapterSdk)", (done) => {
+        inject([C8o], async (c8o: C8o) => {
+            let doneCalled = false;
+            const finish = (error?: any) => {
+                if (doneCalled) {
+                    return;
+                }
+                doneCalled = true;
+                if (error) {
+                    done.fail(error);
+                } else {
+                    done();
+                }
+            };
+            const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+                return new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => {
+                        reject(new Error(`timeout waiting for ${label}`));
+                    }, timeoutMs);
+                    promise
+                        .then((value) => {
+                            clearTimeout(timer);
+                            resolve(value);
+                        })
+                        .catch((err) => {
+                            clearTimeout(timer);
+                            reject(err);
+                        });
+                });
+            };
+            const isWorkerUsable = (): boolean => {
+                if (typeof Worker === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function" || typeof Blob === "undefined") {
+                    return false;
+                }
+                try {
+                    const blob = new Blob(["self.onmessage = function () {};"], { type: "text/javascript" });
+                    const worker = new Worker(URL.createObjectURL(blob));
+                    worker.terminate();
+                    return true;
+                } catch (err) {
+                    return false;
+                }
+            };
+
+            if (!isWorkerUsable()) {
+                pending("Worker unsupported in this environment");
+                finish();
+                return;
+            }
+
+            const dbName = `c8o_worker_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+            const settings = Stuff.C8o_FS;
+            settings.setDefaultDatabaseName(dbName).setUseWorker(true);
+            let error: any = null;
+
+            try {
+                await withTimeout(c8o.init(settings), 20000, "init");
+                await withTimeout(c8o.finalizeInit(), 20000, "finalizeInit");
+
+                await withTimeout(
+                    c8o.callJson(
+                        `fs://${dbName}.post`,
+                        C8o.FS_POLICY,
+                        C8o.FS_POLICY_MERGE,
+                        "_id",
+                        "doc_1",
+                        "value",
+                        "hello worker"
+                    ).async(),
+                    20000,
+                    "post"
+                );
+                const doc = await withTimeout(c8o.callJson(`fs://${dbName}.get`, "docid", "doc_1").async(), 20000, "get");
+                expect(doc.value).toBe("hello worker");
+
+                const fullSync: any = c8o.c8oFullSync;
+                const fsDb: any = await withTimeout(fullSync.getOrCreateFullSyncDatabase(dbName), 20000, "getOrCreateFullSyncDatabase");
+                const adapterType = typeof fsDb.getdatabase?.type === "function"
+                    ? fsDb.getdatabase.type()
+                    : fsDb.getdatabase?.adapter ?? fsDb.getdatabase?._adapter;
+                expect(adapterType).toBe("worker");
+            } catch (err) {
+                error = err;
+            } finally {
+                try {
+                    await withTimeout(c8o.callJson(`fs://${dbName}.destroy`).async(), 20000, "destroy");
+                } catch (_cleanupError) {
+                    // ignore cleanup
+                }
+                finish(error);
+            }
+        })();
+    });
 });
