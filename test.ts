@@ -19,7 +19,7 @@ import { HttpClient } from "@angular/common/http";
 
 import PouchDB from "pouchdb-browser";
 import { C8oUtils } from "./lib/c8oUtils.service";
-import { C8oAlldocsLocal, C8oPromise, C8oSettings, C8oLogLevel, C8oException, C8oExceptionMessage, C8oProgress, C8oLocalCache, C8oFullSyncChangeListener, Priority, C8oRessourceNotFoundException, C8oResponseJsonListener, C8oHttpRequestException, C8oCore, C8oSessionStatus } from "./c8osdk-js-core/src/index";
+import { C8oAlldocsLocal, C8oPromise, C8oSettings, C8oLogLevel, C8oException, C8oExceptionMessage, C8oProgress, C8oLocalCache, C8oFullSyncChangeListener, Priority, C8oRessourceNotFoundException, C8oResponseJsonListener, C8oHttpRequestException, C8oCore, C8oSessionStatus, C8oUtilsCore } from "./c8osdk-js-core/src/index";
 import { windowTime } from 'rxjs/operators';
 
 declare const require: any;
@@ -87,7 +87,7 @@ describe("provider: basic calls verifications", () => {
     });
 
 
-    
+
     it("should test create fs createIndex (C8oFsCreateIndex)", (done) => {
         inject([C8o], async (c8o: C8o) => {
         c8o.init(Stuff.C8o)
@@ -2797,6 +2797,54 @@ describe("provider: basic calls verifications", () => {
             }
         })();
     });
+    it("should not auto-login when keepSessionAlive is false (C8oSessionNoAutoLogin)", (done) => {
+        inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
+            try {
+                const waitFor = async (check: () => boolean, timeoutMs = 15000, intervalMs = 200) => {
+                    const start = Date.now();
+                    while ((Date.now() - start) < timeoutMs) {
+                        if (check()) {
+                            return true;
+                        }
+                        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+                    }
+                    return false;
+                };
+
+                await c8o.init(Stuff.C8o_Sessions);
+                await c8o.finalizeInit();
+
+                const response = await c8o.callJson(".LoginTesting").async();
+                expect(response["document"]["authenticatedUserID"]).toBe("testing_user");
+
+                let sessionLost = false;
+                let autoLoginTriggered = false;
+
+                c8o.handleAutoLoginResponse().subscribe(() => {
+                    autoLoginTriggered = true;
+                });
+                c8o.handleSessionLost().subscribe(() => {
+                    sessionLost = true;
+                });
+
+                await new Promise((resolve) => {
+                    Functions.removesess(c8o, resolve);
+                });
+                await c8o.callJson(".Ping", "var1", "val1").async();
+
+                if (!(await waitFor(() => sessionLost, 20000))) {
+                    done.fail("C8oSessionNoAutoLogin did not detect session loss");
+                    return;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                expect(autoLoginTriggered).toBeFalsy();
+                expect(c8o.session.user.name).toBe("anonymous");
+                done();
+            } catch (error) {
+                done.fail("C8oSessionNoAutoLogin " + error.message);
+            }
+        })();
+    });
      it("should check that replication restart or not when its necessary (C8oReplicationStopR)", (done) => {
         inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
             try {
@@ -3595,7 +3643,7 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
                 
         })();
     })
-
+    
     
     it("should check that generated error go to then", (done) => {
         inject([C8o], async (c8o: C8o) => {
@@ -3734,7 +3782,6 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
                     c8o.callJson("moveFile.login")
                     .then((resp, params)=>{
                         console.log("resp login");
-                        done();
                         return c8o.callJson("moveFile.moveFile");
                     })
                     .then((resp, params)=>{
@@ -3760,12 +3807,11 @@ it("should check that Fullsync database whitout prefix works(C8oFsWithoutPrefix)
                 
         })();
     });
-
     
 
-    
+
+
 });
-/***/
 describe("provider: pouchdb plugins", () => {
     var originalTimeout;
     beforeEach(() => {
@@ -3972,4 +4018,95 @@ describe("provider: pouchdb plugins", () => {
             }
         })();
     });
+});
+
+describe("provider: settings and helpers", () => {
+    it("should reject odd parameters count (C8oToParametersOdd)", () => {
+        let thrown: any = null;
+        try {
+            C8oCore.toParameters(["onlyKey"]);
+        } catch (err) {
+            thrown = err;
+        }
+        expect(thrown).toBeDefined();
+        expect(thrown.message).toBe("Incorrect number of parameters");
+    });
+
+    it("should normalize timeout and retry values (C8oSettingsTimeoutRetry)", () => {
+        const settings = new C8oSettings();
+        settings.setTimeout(0);
+        expect(settings.timeout).toBe(-1);
+        settings.setTimeout(5000);
+        expect(settings.timeout).toBe(5000);
+        settings.setRetry(-2);
+        expect(settings.retry).toBe(0);
+        settings.setRetry(3);
+        expect(settings.retry).toBe(3);
+    });
+
+
+    it("should toggle settings flags (C8oSettingsFlags)", () => {
+        const settings = new C8oSettings()
+            .setUseWorker(true)
+            .setParrallelizeCallSequences(false);
+        expect(settings.usewroker).toBe(true);
+        expect(settings.parrallelizeCallSequences).toBe(false);
+    });
+});
+
+describe("provider: utils core", () => {
+    it("should validate URLs (C8oUtilsValidUrl)", () => {
+        expect(C8oUtilsCore.isValidUrl("https://example.com")).toBeTruthy();
+        expect(C8oUtilsCore.isValidUrl("http://localhost:18080/convertigo/projects/ClientSDKtesting")).toBeTruthy();
+        expect(C8oUtilsCore.isValidUrl("ftp://example.com")).toBeFalsy();
+        expect(C8oUtilsCore.isValidUrl("example.com")).toBeFalsy();
+    });
+
+    it("should compute MD5 (C8oUtilsMD5)", () => {
+        expect(C8oUtilsCore.MD5("test")).toBe("098f6bcd4621d373cade4e832627b4f6");
+        expect(C8oUtilsCore.MD5("")).toBe("d41d8cd98f00b204e9800998ecf8427e");
+    });
+
+    it("should manage parameters helpers (C8oUtilsParameters)", () => {
+        const params: any = { foo: "bar", count: 2 };
+        expect(C8oUtilsCore.getParameterStringValue(params, "foo", false)).toBe("bar");
+        expect(C8oUtilsCore.getParameterObjectValue(params, "count", false)).toBe(2);
+
+        const params2: any = { foo: "bar", extra: "x" };
+        const value = C8oUtilsCore.peekParameterStringValue(params2, "foo", true);
+        expect(value).toBe("bar");
+        expect(params2.foo).toBeUndefined();
+
+        let thrown: any = null;
+        try {
+            C8oUtilsCore.peekParameterStringValue(params2, "missing", true);
+        } catch (err) {
+            thrown = err;
+        }
+        expect(thrown).toBeDefined();
+    });
+
+    it("should identify call requests (C8oUtilsIdentifyRequest)", () => {
+        const params = { a: "1", b: "2" };
+        const id = C8oUtilsCore.identifyC8oCallRequest(params, "json");
+        expect(id).toBe("json" + JSON.stringify(params));
+    });
+
+    it("should persist uuid in localStorage (C8oUtilsUUID)", () => {
+        const key = "__c8o_uuid";
+        const previous = localStorage.getItem(key);
+        localStorage.removeItem(key);
+
+        const uuid1 = C8oUtilsCore.getNewGUIDString();
+        const uuid2 = C8oUtilsCore.getNewGUIDString();
+        expect(uuid1).toBe(uuid2);
+        expect(uuid1.startsWith("web-")).toBeTruthy();
+
+        if (previous) {
+            localStorage.setItem(key, previous);
+        } else {
+            localStorage.removeItem(key);
+        }
+    });
+    
 });
