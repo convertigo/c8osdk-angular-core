@@ -86,7 +86,7 @@ describe("provider: basic calls verifications", () => {
         })();
     });
 
-
+    
 
     it("should test create fs createIndex (C8oFsCreateIndex)", (done) => {
         inject([C8o], async (c8o: C8o) => {
@@ -951,6 +951,7 @@ describe("provider: basic calls verifications", () => {
     }
     );
 
+    /* not true anymore since endpoint can be this format now
     it("should returns and IllegalArgument Exception (C8oBadEndpoint)", (done) => {
         inject([C8o], async (c8o: C8o) => {
             let settings: any = new C8oSettings();
@@ -965,7 +966,7 @@ describe("provider: basic calls verifications", () => {
         })();
     }
     );
-
+    */
 
 
     it("should genrerates exceptions (C8oUnknownHostCallAndLog)",
@@ -2661,7 +2662,7 @@ describe("provider: basic calls verifications", () => {
                 });
         })();
     });
-
+    
     it("should check that handle Network Events works (C8oHandleNetworkEvent)", (done) => {
         inject([C8o, HttpClient], async (c8o: C8o, http: HttpClient) => {
             try {
